@@ -10,6 +10,22 @@ Pensada para consultores y técnicos que rebotan entre tareas y necesitan recons
 
 ---
 
+## Descarga rápida
+
+Última build automática del commit más reciente en `main` — sin instalación, portable:
+
+| Plataforma | Archivo | Descarga directa |
+|---|---|---|
+| **Windows x64** | `TimeLog-windows-amd64.exe` | [⬇ Descargar](https://github.com/eerodriguezIndra/TimeLog/releases/download/nightly/TimeLog-windows-amd64.exe) |
+| **macOS Apple Silicon** (M1/M2/M3/M4) | `TimeLog-darwin-arm64.zip` | [⬇ Descargar](https://github.com/eerodriguezIndra/TimeLog/releases/download/nightly/TimeLog-darwin-arm64.zip) |
+| **macOS Intel** | `TimeLog-darwin-amd64.zip` | [⬇ Descargar](https://github.com/eerodriguezIndra/TimeLog/releases/download/nightly/TimeLog-darwin-amd64.zip) |
+
+¿No sabes qué Mac tienes? **Menú Apple → Acerca de este Mac** — si dice "Chip Apple M…" es Apple Silicon, si dice "Intel" es Intel.
+
+Ver todas las builds y checksums en la [página del release nightly](https://github.com/eerodriguezIndra/TimeLog/releases/tag/nightly).
+
+---
+
 ## Características
 
 - **Sin botón de cierre real** — la X de la ventana solo oculta; la app sigue viva en el system tray hasta que tú la cierres desde el menú.
@@ -31,27 +47,35 @@ Pensada para consultores y técnicos que rebotan entre tareas y necesitan recons
 
 ## Instalación
 
-### Windows (portable, recomendado)
+### Windows (portable)
 
-Descarga el `.exe` desde la última build automática:
+Descarga **[TimeLog-windows-amd64.exe](https://github.com/eerodriguezIndra/TimeLog/releases/download/nightly/TimeLog-windows-amd64.exe)** y ejecútalo directamente — no necesita instalación. La primera vez abrirá la ventana de configuración para que escojas el intervalo, dónde guardar el CSV y si quieres que arranque al iniciar sesión.
 
-> **[Descargar TimeLog-windows-amd64.exe](https://github.com/eerodriguezIndra/TimeLog/releases/download/nightly/TimeLog-windows-amd64.exe)**
-
-Ejecuta el `.exe` directamente — no necesita instalación. La primera vez abrirá la ventana de configuración para que escojas el intervalo, dónde guardar el CSV y si quieres que arranque al iniciar sesión.
+> **SmartScreen**: la primera vez Windows puede mostrar "Windows protegió tu PC" (el `.exe` no está firmado). Clic en **Más información → Ejecutar de todos modos**.
 
 ### macOS
 
-Descarga la build automática según tu Mac:
+Descarga el `.zip` según el chip de tu Mac:
 
-- **Apple Silicon (M1/M2/M3)**: [TimeLog-darwin-arm64.zip](https://github.com/eerodriguezIndra/TimeLog/releases/download/nightly/TimeLog-darwin-arm64.zip)
-- **Intel**: [TimeLog-darwin-amd64.zip](https://github.com/eerodriguezIndra/TimeLog/releases/download/nightly/TimeLog-darwin-amd64.zip)
+- **Apple Silicon (M1/M2/M3/M4)** → [TimeLog-darwin-arm64.zip](https://github.com/eerodriguezIndra/TimeLog/releases/download/nightly/TimeLog-darwin-arm64.zip)
+- **Intel** → [TimeLog-darwin-amd64.zip](https://github.com/eerodriguezIndra/TimeLog/releases/download/nightly/TimeLog-darwin-amd64.zip)
 
-Descomprime y mueve `TimeLog.app` a `/Applications` (opcional). Como no está firmado/notarizado, la primera vez ábrelo con **clic derecho → Abrir**, o desde Terminal:
+Descomprime (doble clic) y obtienes `TimeLog.app`. Muévelo a `/Applications` (opcional pero recomendado).
 
+**La primera vez, Gatekeeper la bloqueará** porque la app no está firmada/notarizada. Tienes dos opciones:
+
+**Opción A — desde Finder (recomendada):**
+1. Clic derecho (o Ctrl + clic) sobre `TimeLog.app` → **Abrir**.
+2. Aparece un diálogo "¿Estás seguro?" → **Abrir**.
+3. Próximas veces se abre normalmente con doble clic.
+
+**Opción B — desde Terminal:**
 ```bash
 xattr -dr com.apple.quarantine /Applications/TimeLog.app
 open /Applications/TimeLog.app
 ```
+
+El icono quedará en la **menubar** (arriba a la derecha). Clic en él para "+ Nueva tarea", Configuración o Salir.
 
 ### Linux
 
@@ -137,7 +161,10 @@ go build -o timelog .
 
 # Windows portable (con icono embebido, sin consola)
 go install fyne.io/tools/cmd/fyne@latest
-fyne package -os windows -icon icono.png -name TimeLog -appID com.edwin.timelog
+fyne package --os windows --icon icono.png --name TimeLog --app-id com.edwin.timelog
+
+# macOS (.app)
+fyne package --os darwin  --icon icono.png --name TimeLog --app-id com.edwin.timelog
 ```
 
 ### Estructura
@@ -162,7 +189,7 @@ TimeLog/
 │       ├── topmost_other.go      # no-op
 │       ├── position_windows.go   # GetSystemMetrics → esquina sup-der
 │       └── position_other.go     # no-op
-└── .github/workflows/release.yml  # CI: build Windows + Release + ghcr.io
+└── .github/workflows/release.yml  # CI: build Windows + macOS Intel/ARM → Release
 ```
 
 ---
