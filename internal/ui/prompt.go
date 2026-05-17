@@ -152,6 +152,15 @@ func (p *PromptController) Show() {
 	w.RequestFocus()
 	w.Canvas().Focus(clientEntry)
 
+	// En Windows: HWND_TOPMOST para garantizar visibilidad sobre cualquier app.
+	enableAlwaysOnTop(w)
+
+	// Notificación del SO (parpadea taskbar / suena en Windows, banner en macOS).
+	p.app.SendNotification(&fyne.Notification{
+		Title:   "TimeLog",
+		Content: "¿Qué estás haciendo? Toma un momento para registrarlo.",
+	})
+
 	go p.growLoop(w)
 }
 

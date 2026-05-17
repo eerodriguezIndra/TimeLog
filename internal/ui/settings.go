@@ -20,11 +20,11 @@ import (
 
 // SettingsController controla la ventana de configuración.
 type SettingsController struct {
-	app          fyne.App
-	cfg          *config.Config
-	onChange     func()
-	mu           sync.Mutex
-	active       fyne.Window
+	app      fyne.App
+	cfg      *config.Config
+	onChange func()
+	mu       sync.Mutex
+	active   fyne.Window
 }
 
 func NewSettingsController(app fyne.App, cfg *config.Config, onChange func()) *SettingsController {

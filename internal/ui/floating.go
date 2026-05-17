@@ -37,11 +37,19 @@ func FloatingWidget(app fyne.App, onClick, onSettings, onQuit func()) fyne.Windo
 
 	row := container.NewHBox(iconBtn, settingsBtn, quitBtn)
 	w.SetContent(container.NewPadded(row))
-	w.Resize(fyne.NewSize(180, 80))
+
+	const widW, widH = 180, 80
+	w.Resize(fyne.NewSize(widW, widH))
 	w.CenterOnScreen()
 
 	// El "botón de cierre" del SO solo oculta la ventana — la app sigue viva en el tray.
 	w.SetCloseIntercept(func() { w.Hide() })
+
+	// En Windows fijamos always-on-top vía user32.SetWindowPos(HWND_TOPMOST)
+	// y movemos la ventana a la esquina superior derecha.
+	// En otras plataformas es no-op (ver *_other.go).
+	enableAlwaysOnTop(w)
+	placeTopRight(w, widW, widH)
 
 	return w
 }

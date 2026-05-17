@@ -1,0 +1,173 @@
+name: Build & Release (Windows)
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  APP_NAME: TimeLog
+  APP_ID: com.edwin.timelog
+  BINARY: TimeLog.exe
+  REGISTRY: ghcr.io
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      sha7: ${{ steps.meta.outputs.sha7 }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: Compute version metadata
+        id: meta
+        shell: bash
+        run: |
+          sha7=$(git rev-parse --short=7 HEAD)
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            ver="${GITHUB_REF#refs/tags/}"
+          else
+            ver="v0.0.${GITHUB_RUN_NUMBER}-${sha7}"
+          fi
+          echo "version=${ver}" >> "$GITHUB_OUTPUT"
+          echo "sha7=${sha7}" >> "$GITHUB_OUTPUT"
+          echo "VERSION=${ver}" >> "$GITHUB_ENV"
+
+      - name: Install Fyne packager
+        run: go install fyne.io/tools/cmd/fyne@latest
+
+      - name: Build Windows .exe with embedded icon
+        shell: pwsh
+        run: |
+          $env:CGO_ENABLED = "1"
+          # fyne package genera TimeLog.exe con icono embebido y subsistema GUI
+          # (-H windowsgui implícito), enlazado estáticamente con OpenGL nativo.
+          fyne package `
+            -os windows `
+            -icon icono.png `
+            -name "$env:APP_NAME" `
+            -appID "$env:APP_ID" `
+            -appVersion "${{ steps.meta.outputs.version }}".TrimStart("v").Split("-")[0]
+          if (!(Test-Path "$env:BINARY")) {
+            Get-ChildItem -Recurse -Filter *.exe
+            throw "no se generó $env:BINARY"
+          }
+          # Renombrar al asset publicado
+          $out = "TimeLog-windows-amd64.exe"
+          Move-Item -Force "$env:BINARY" $out
+          Get-Item $out | Select-Object Name, Length
+          echo "ASSET=$out" >> $env:GITHUB_ENV
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: timelog-windows
+          path: TimeLog-windows-amd64.exe
+          if-no-files-found: error
+          retention-days: 14
+
+  release-github:
+    needs: build-windows
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: timelog-windows
+          path: dist
+
+      - name: Compute checksum
+        run: |
+          cd dist
+          sha256sum TimeLog-windows-amd64.exe > TimeLog-windows-amd64.exe.sha256
+          ls -la
+
+      - name: Publish (or update) rolling release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nightly
+          name: "Nightly · ${{ needs.build-windows.outputs.version }}"
+          body: |
+            Build automático del último commit en `main`.
+
+            - Commit: `${{ needs.build-windows.outputs.sha7 }}`
+            - Versión: `${{ needs.build-windows.outputs.version }}`
+
+            Binario portable Windows x64 — un solo `.exe`, sin instalación.
+          prerelease: true
+          files: |
+            dist/TimeLog-windows-amd64.exe
+            dist/TimeLog-windows-amd64.exe.sha256
+
+      - name: Publish tagged release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "TimeLog ${{ needs.build-windows.outputs.version }}"
+          generate_release_notes: true
+          files: |
+            dist/TimeLog-windows-amd64.exe
+            dist/TimeLog-windows-amd64.exe.sha256
+
+  publish-ghcr:
+    needs: build-windows
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: timelog-windows
+          path: dist
+
+      - name: Setup ORAS
+        uses: oras-project/setup-oras@v1
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | oras login ${{ env.REGISTRY }} -u "${{ github.actor }}" --password-stdin
+
+      - name: Push .exe as OCI artifact to GHCR
+        working-directory: dist
+        run: |
+          repo_lc=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          version="${{ needs.build-windows.outputs.version }}"
+          sha7="${{ needs.build-windows.outputs.sha7 }}"
+
+          # Compute checksum and tag the artifact
+          sha256sum TimeLog-windows-amd64.exe | awk '{print $1}' > checksum.txt
+
+          # Tag with version, sha7 and (if main) latest
+          tags=("$version" "sha-$sha7")
+          if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
+            tags+=("latest")
+          fi
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            tags+=("latest")
+          fi
+
+          for t in "${tags[@]}"; do
+            echo "→ pushing ${{ env.REGISTRY }}/${repo_lc}:${t}"
+            oras push "${{ env.REGISTRY }}/${repo_lc}:${t}" \
+              --artifact-type application/vnd.timelog.app.v1+oci \
+              --annotation "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+              --annotation "org.opencontainers.image.revision=${{ github.sha }}" \
+              --annotation "org.opencontainers.image.version=${version}" \
+              --annotation "org.opencontainers.image.title=TimeLog Windows portable" \
+              --annotation "org.opencontainers.image.description=Registro de tiempo con prompt periódico — binario Windows x64 portable" \
+              --annotation "org.opencontainers.image.licenses=MIT" \
+              TimeLog-windows-amd64.exe:application/vnd.microsoft.portable-executable \
+              checksum.txt:text/plain
+          done
