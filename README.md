@@ -1,8 +1,14 @@
-# TimeLog
+<p align="center">
+  <img src="avatar.png" alt="TimeLog" width="180" />
+</p>
 
-[![Build & Release](https://github.com/eerodriguezIndra/TimeLog/actions/workflows/release.yml/badge.svg)](https://github.com/eerodriguezIndra/TimeLog/actions/workflows/release.yml)
-[![Release](https://img.shields.io/github/v/release/eerodriguezIndra/TimeLog?include_prereleases&label=nightly)](https://github.com/eerodriguezIndra/TimeLog/releases/tag/nightly)
-[![Go](https://img.shields.io/badge/Go-1.22-00ADD8?logo=go)](https://go.dev/)
+<h1 align="center">TimeLog</h1>
+
+<p align="center">
+  <a href="https://github.com/eerodriguezIndra/TimeLog/actions/workflows/release.yml"><img src="https://github.com/eerodriguezIndra/TimeLog/actions/workflows/release.yml/badge.svg" alt="Build & Release"></a>
+  <a href="https://github.com/eerodriguezIndra/TimeLog/releases/tag/nightly"><img src="https://img.shields.io/github/v/release/eerodriguezIndra/TimeLog?include_prereleases&label=nightly" alt="Release"></a>
+  <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.22-00ADD8?logo=go" alt="Go"></a>
+</p>
 
 Aplicación de escritorio multiplataforma para **registro horario por interrupción**: cada cierto tiempo (configurable) aparece un panel preguntando *¿qué estás haciendo, para qué cliente y de qué tipo?*, y guarda la respuesta en un CSV.
 
