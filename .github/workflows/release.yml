@@ -1,4 +1,4 @@
-name: Build & Release (Windows)
+name: Build & Release (Windows + macOS)
 
 on:
   push:
@@ -12,27 +12,17 @@ permissions:
 env:
   APP_NAME: TimeLog
   APP_ID: com.edwin.timelog
-  BINARY: TimeLog.exe
 
 jobs:
-  build-windows:
-    runs-on: windows-latest
+  meta:
+    runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.meta.outputs.version }}
       sha7: ${{ steps.meta.outputs.sha7 }}
       semver: ${{ steps.meta.outputs.semver }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.22'
-          cache: true
-
-      - name: Compute version metadata
-        id: meta
+      - uses: actions/checkout@v4
+      - id: meta
         shell: bash
         run: |
           sha7=$(git rev-parse --short=7 HEAD)
@@ -47,6 +37,17 @@ jobs:
           echo "sha7=${sha7}"     >> "$GITHUB_OUTPUT"
           echo "semver=${semver}" >> "$GITHUB_OUTPUT"
 
+  build-windows:
+    needs: meta
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
       - name: Install Fyne packager
         run: go install fyne.io/tools/cmd/fyne@latest
 
@@ -55,44 +56,95 @@ jobs:
         env:
           CGO_ENABLED: '1'
         run: |
-          # fyne package genera TimeLog.exe con icono embebido y subsistema GUI
-          # (-H windowsgui implícito), enlazado estáticamente con OpenGL nativo.
           fyne package `
             --os windows `
             --icon icono.png `
             --name "$env:APP_NAME" `
             --app-id "$env:APP_ID" `
-            --app-version "${{ steps.meta.outputs.semver }}"
-          if (!(Test-Path "$env:BINARY")) {
+            --app-version "${{ needs.meta.outputs.semver }}"
+          if (!(Test-Path "TimeLog.exe")) {
             Get-ChildItem -Recurse -Filter *.exe
-            throw "no se generó $env:BINARY"
+            throw "no se generó TimeLog.exe"
           }
-          $out = "TimeLog-windows-amd64.exe"
-          Move-Item -Force "$env:BINARY" $out
-          Get-Item $out | Select-Object Name, Length
+          Move-Item -Force TimeLog.exe TimeLog-windows-amd64.exe
+          Get-Item TimeLog-windows-amd64.exe | Select-Object Name, Length
 
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: timelog-windows
+          name: timelog-windows-amd64
           path: TimeLog-windows-amd64.exe
           if-no-files-found: error
           retention-days: 14
 
+  build-macos:
+    needs: meta
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-13      # Intel x86_64
+            arch: amd64
+          - runner: macos-latest  # Apple Silicon (arm64)
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: Install Fyne packager
+        run: go install fyne.io/tools/cmd/fyne@latest
+
+      - name: Build macOS .app
+        env:
+          CGO_ENABLED: '1'
+        run: |
+          fyne package \
+            --os darwin \
+            --icon icono.png \
+            --name "$APP_NAME" \
+            --app-id "$APP_ID" \
+            --app-version "${{ needs.meta.outputs.semver }}"
+          if [ ! -d "TimeLog.app" ]; then
+            ls -la
+            echo "no se generó TimeLog.app"
+            exit 1
+          fi
+
+      - name: Zip .app preservando estructura macOS
+        run: |
+          out="TimeLog-darwin-${{ matrix.arch }}.zip"
+          # ditto preserva symlinks, permisos y atributos extendidos del bundle
+          ditto -c -k --sequesterRsrc --keepParent TimeLog.app "$out"
+          ls -lh "$out"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: timelog-darwin-${{ matrix.arch }}
+          path: TimeLog-darwin-${{ matrix.arch }}.zip
+          if-no-files-found: error
+          retention-days: 14
+
   release-github:
-    needs: build-windows
+    needs: [meta, build-windows, build-macos]
     runs-on: ubuntu-latest
     steps:
-      - name: Download Windows artifact
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          name: timelog-windows
           path: dist
+          merge-multiple: true
 
-      - name: Compute checksum
+      - name: Compute checksums
+        working-directory: dist
         run: |
-          cd dist
-          sha256sum TimeLog-windows-amd64.exe > TimeLog-windows-amd64.exe.sha256
+          ls -la
+          sha256sum TimeLog-windows-amd64.exe   > TimeLog-windows-amd64.exe.sha256
+          sha256sum TimeLog-darwin-amd64.zip    > TimeLog-darwin-amd64.zip.sha256
+          sha256sum TimeLog-darwin-arm64.zip    > TimeLog-darwin-arm64.zip.sha256
           ls -la
 
       - name: Publish (or update) rolling release
@@ -100,25 +152,43 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: nightly
-          name: "Nightly · ${{ needs.build-windows.outputs.version }}"
+          name: "Nightly · ${{ needs.meta.outputs.version }}"
           body: |
             Build automático del último commit en `main`.
 
-            - Commit: `${{ needs.build-windows.outputs.sha7 }}`
-            - Versión: `${{ needs.build-windows.outputs.version }}`
+            - Commit: `${{ needs.meta.outputs.sha7 }}`
+            - Versión: `${{ needs.meta.outputs.version }}`
 
-            Binario portable Windows x64 — un solo `.exe`, sin instalación.
+            **Descargas**
+
+            | Plataforma | Archivo |
+            |---|---|
+            | Windows x64 (portable) | `TimeLog-windows-amd64.exe` |
+            | macOS Intel | `TimeLog-darwin-amd64.zip` |
+            | macOS Apple Silicon | `TimeLog-darwin-arm64.zip` |
+
+            En macOS, al descomprimir verás `TimeLog.app`. Como no está
+            firmado/notarizado, ábrelo con **clic derecho → Abrir** la
+            primera vez, o ejecuta `xattr -dr com.apple.quarantine TimeLog.app`.
           prerelease: true
           files: |
             dist/TimeLog-windows-amd64.exe
             dist/TimeLog-windows-amd64.exe.sha256
+            dist/TimeLog-darwin-amd64.zip
+            dist/TimeLog-darwin-amd64.zip.sha256
+            dist/TimeLog-darwin-arm64.zip
+            dist/TimeLog-darwin-arm64.zip.sha256
 
       - name: Publish tagged release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          name: "TimeLog ${{ needs.build-windows.outputs.version }}"
+          name: "TimeLog ${{ needs.meta.outputs.version }}"
           generate_release_notes: true
           files: |
             dist/TimeLog-windows-amd64.exe
             dist/TimeLog-windows-amd64.exe.sha256
+            dist/TimeLog-darwin-amd64.zip
+            dist/TimeLog-darwin-amd64.zip.sha256
+            dist/TimeLog-darwin-arm64.zip
+            dist/TimeLog-darwin-arm64.zip.sha256

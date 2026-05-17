@@ -1,6 +1,6 @@
 # TimeLog
 
-[![Build & Release (Windows)](https://github.com/eerodriguezIndra/TimeLog/actions/workflows/release.yml/badge.svg)](https://github.com/eerodriguezIndra/TimeLog/actions/workflows/release.yml)
+[![Build & Release](https://github.com/eerodriguezIndra/TimeLog/actions/workflows/release.yml/badge.svg)](https://github.com/eerodriguezIndra/TimeLog/actions/workflows/release.yml)
 [![Release](https://img.shields.io/github/v/release/eerodriguezIndra/TimeLog?include_prereleases&label=nightly)](https://github.com/eerodriguezIndra/TimeLog/releases/tag/nightly)
 [![Go](https://img.shields.io/badge/Go-1.22-00ADD8?logo=go)](https://go.dev/)
 
@@ -41,7 +41,17 @@ Ejecuta el `.exe` directamente — no necesita instalación. La primera vez abri
 
 ### macOS
 
-Compila desde código (ver sección [Compilación](#compilación-desde-código)). No hay binarios prebuilt firmados — macOS bloquearía un `.dmg` sin firmar.
+Descarga la build automática según tu Mac:
+
+- **Apple Silicon (M1/M2/M3)**: [TimeLog-darwin-arm64.zip](https://github.com/eerodriguezIndra/TimeLog/releases/download/nightly/TimeLog-darwin-arm64.zip)
+- **Intel**: [TimeLog-darwin-amd64.zip](https://github.com/eerodriguezIndra/TimeLog/releases/download/nightly/TimeLog-darwin-amd64.zip)
+
+Descomprime y mueve `TimeLog.app` a `/Applications` (opcional). Como no está firmado/notarizado, la primera vez ábrelo con **clic derecho → Abrir**, o desde Terminal:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/TimeLog.app
+open /Applications/TimeLog.app
+```
 
 ### Linux
 
@@ -159,10 +169,13 @@ TimeLog/
 
 ## Distribución automática
 
-Cada `git push` a `main` dispara [`release.yml`](.github/workflows/release.yml), que en un runner `windows-latest`:
+Cada `git push` a `main` dispara [`release.yml`](.github/workflows/release.yml), que en paralelo:
 
-1. Compila el `.exe` con `fyne package` (icono embebido, subsistema GUI, sin consola).
-2. Lo publica como **pre-release rolling** `nightly` en GitHub Releases, junto con su `.sha256`.
+1. **Windows** (`windows-latest`): `fyne package` produce `TimeLog.exe` con icono embebido, subsistema GUI y sin consola.
+2. **macOS Intel** (`macos-13`): `fyne package -os darwin` produce `TimeLog.app`, comprimido con `ditto` a `.zip`.
+3. **macOS Apple Silicon** (`macos-latest`): igual al anterior pero `arm64`.
+
+Todos los artefactos (más sus `.sha256`) se publican en la misma **pre-release rolling** `nightly` en GitHub Releases.
 
 Si haces `git tag v1.2.3 && git push --tags`, en lugar de actualizar `nightly` crea una release etiquetada `TimeLog v1.2.3` con notas autogeneradas.
 
