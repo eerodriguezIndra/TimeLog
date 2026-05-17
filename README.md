@@ -18,9 +18,8 @@ Pensada para consultores y técnicos que rebotan entre tareas y necesitan recons
 |---|---|---|
 | **Windows x64** | `TimeLog-windows-amd64.exe` | [⬇ Descargar](https://github.com/eerodriguezIndra/TimeLog/releases/download/nightly/TimeLog-windows-amd64.exe) |
 | **macOS Apple Silicon** (M1/M2/M3/M4) | `TimeLog-darwin-arm64.zip` | [⬇ Descargar](https://github.com/eerodriguezIndra/TimeLog/releases/download/nightly/TimeLog-darwin-arm64.zip) |
-| **macOS Intel** | `TimeLog-darwin-amd64.zip` | [⬇ Descargar](https://github.com/eerodriguezIndra/TimeLog/releases/download/nightly/TimeLog-darwin-amd64.zip) |
 
-¿No sabes qué Mac tienes? **Menú Apple → Acerca de este Mac** — si dice "Chip Apple M…" es Apple Silicon, si dice "Intel" es Intel.
+> **¿Mac Intel o Linux?** Compila desde código (sección [Compilación](#compilación-desde-código)). No publicamos builds Intel en CI porque los runners de GitHub para esa arquitectura tienen muy poca capacidad y demoran demasiado en cada commit.
 
 Ver todas las builds y checksums en la [página del release nightly](https://github.com/eerodriguezIndra/TimeLog/releases/tag/nightly).
 
@@ -53,14 +52,11 @@ Descarga **[TimeLog-windows-amd64.exe](https://github.com/eerodriguezIndra/TimeL
 
 > **SmartScreen**: la primera vez Windows puede mostrar "Windows protegió tu PC" (el `.exe` no está firmado). Clic en **Más información → Ejecutar de todos modos**.
 
-### macOS
+### macOS Apple Silicon (M1/M2/M3/M4)
 
-Descarga el `.zip` según el chip de tu Mac:
+Descarga **[TimeLog-darwin-arm64.zip](https://github.com/eerodriguezIndra/TimeLog/releases/download/nightly/TimeLog-darwin-arm64.zip)**, descomprime (doble clic) y obtienes `TimeLog.app`. Muévelo a `/Applications` (opcional pero recomendado).
 
-- **Apple Silicon (M1/M2/M3/M4)** → [TimeLog-darwin-arm64.zip](https://github.com/eerodriguezIndra/TimeLog/releases/download/nightly/TimeLog-darwin-arm64.zip)
-- **Intel** → [TimeLog-darwin-amd64.zip](https://github.com/eerodriguezIndra/TimeLog/releases/download/nightly/TimeLog-darwin-amd64.zip)
-
-Descomprime (doble clic) y obtienes `TimeLog.app`. Muévelo a `/Applications` (opcional pero recomendado).
+> **¿Mac Intel?** No publicamos build Intel en CI (los runners x86_64 de GitHub tienen muy poca capacidad). Compila desde código — ver [Compilación](#compilación-desde-código).
 
 **La primera vez, Gatekeeper la bloqueará** porque la app no está firmada/notarizada. Tienes dos opciones:
 
@@ -199,10 +195,9 @@ TimeLog/
 Cada `git push` a `main` dispara [`release.yml`](.github/workflows/release.yml), que en paralelo:
 
 1. **Windows** (`windows-latest`): `fyne package` produce `TimeLog.exe` con icono embebido, subsistema GUI y sin consola.
-2. **macOS Intel** (`macos-13`): `fyne package -os darwin` produce `TimeLog.app`, comprimido con `ditto` a `.zip`.
-3. **macOS Apple Silicon** (`macos-latest`): igual al anterior pero `arm64`.
+2. **macOS Apple Silicon** (`macos-latest`): `fyne package -os darwin` produce `TimeLog.app`, comprimido con `ditto` a `.zip` preservando symlinks/permisos.
 
-Todos los artefactos (más sus `.sha256`) se publican en la misma **pre-release rolling** `nightly` en GitHub Releases.
+Ambos artefactos (más sus `.sha256`) se publican en la misma **pre-release rolling** `nightly` en GitHub Releases. macOS Intel quedó fuera del CI porque los runners x86_64 de GitHub Actions están sobresuscritos (15-30 min de cola); usuarios Intel pueden compilar desde código.
 
 Si haces `git tag v1.2.3 && git push --tags`, en lugar de actualizar `nightly` crea una release etiquetada `TimeLog v1.2.3` con notas autogeneradas.
 

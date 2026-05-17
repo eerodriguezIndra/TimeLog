@@ -78,7 +78,7 @@ jobs:
 
   build-macos-arm64:
     needs: meta
-    runs-on: macos-latest  # Apple Silicon
+    runs-on: macos-latest  # Apple Silicon (M-series)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -103,62 +103,22 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  # Intel x86_64 — "best effort". El runner macos-13 suele tener mucha cola.
-  # Si tarda demasiado o falla, NO bloquea el release principal; cuando
-  # termine, el job 'release-intel-late' añade su .zip al release existente.
-  build-macos-amd64:
-    needs: meta
-    runs-on: macos-13      # Intel
-    continue-on-error: true
-    timeout-minutes: 35
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.22'
-          cache: true
-      - name: Install Fyne packager
-        run: go install fyne.io/tools/cmd/fyne@latest
-      - name: Build macOS .app (amd64)
-        env:
-          CGO_ENABLED: '1'
-        run: |
-          fyne package --os darwin --icon icono.png --name "$APP_NAME" \
-            --app-id "$APP_ID" --app-version "${{ needs.meta.outputs.semver }}"
-          test -d TimeLog.app || { ls -la; echo "no se generó TimeLog.app"; exit 1; }
-      - name: Zip .app
-        run: ditto -c -k --sequesterRsrc --keepParent TimeLog.app TimeLog-darwin-amd64.zip
-      - uses: actions/upload-artifact@v4
-        with:
-          name: timelog-darwin-amd64
-          path: TimeLog-darwin-amd64.zip
-          if-no-files-found: error
-          retention-days: 14
-
-  # Release principal — solo espera Windows + macOS arm64.
-  # Si Intel ya alcanzó a subir su artifact antes de este job, se incluye.
   release-github:
     needs: [meta, build-windows, build-macos-arm64]
     runs-on: ubuntu-latest
     steps:
-      - name: Download available artifacts
+      - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
 
-      - name: Compute checksums (solo para los assets presentes)
+      - name: Compute checksums
         working-directory: dist
         run: |
           ls -la
-          for f in TimeLog-windows-amd64.exe TimeLog-darwin-arm64.zip TimeLog-darwin-amd64.zip; do
-            if [ -f "$f" ]; then
-              sha256sum "$f" > "${f}.sha256"
-              echo "  ✓ checksum $f"
-            else
-              echo "  · ausente: $f (Intel puede llegar después)"
-            fi
-          done
+          sha256sum TimeLog-windows-amd64.exe > TimeLog-windows-amd64.exe.sha256
+          sha256sum TimeLog-darwin-arm64.zip  > TimeLog-darwin-arm64.zip.sha256
           ls -la
 
       - name: Publish (or update) rolling release
@@ -179,20 +139,18 @@ jobs:
             |---|---|
             | Windows x64 (portable) | `TimeLog-windows-amd64.exe` |
             | macOS Apple Silicon | `TimeLog-darwin-arm64.zip` |
-            | macOS Intel | `TimeLog-darwin-amd64.zip` (se añade cuando el runner Intel termina) |
 
             En macOS, al descomprimir verás `TimeLog.app`. Como no está
             firmado/notarizado, ábrelo con **clic derecho → Abrir** la
             primera vez, o ejecuta `xattr -dr com.apple.quarantine TimeLog.app`.
+
+            Para Mac Intel o Linux: compilar desde código (ver README).
           prerelease: true
-          fail_on_unmatched_files: false
           files: |
             dist/TimeLog-windows-amd64.exe
             dist/TimeLog-windows-amd64.exe.sha256
             dist/TimeLog-darwin-arm64.zip
             dist/TimeLog-darwin-arm64.zip.sha256
-            dist/TimeLog-darwin-amd64.zip
-            dist/TimeLog-darwin-amd64.zip.sha256
 
       - name: Publish tagged release
         if: startsWith(github.ref, 'refs/tags/v')
@@ -200,47 +158,8 @@ jobs:
         with:
           name: "TimeLog ${{ needs.meta.outputs.version }}"
           generate_release_notes: true
-          fail_on_unmatched_files: false
           files: |
             dist/TimeLog-windows-amd64.exe
             dist/TimeLog-windows-amd64.exe.sha256
             dist/TimeLog-darwin-arm64.zip
             dist/TimeLog-darwin-arm64.zip.sha256
-            dist/TimeLog-darwin-amd64.zip
-            dist/TimeLog-darwin-amd64.zip.sha256
-
-  # Si Intel terminó DESPUÉS del release principal, añade su .zip al release.
-  # No reemplaza nada — softprops conserva los assets existentes.
-  release-intel-late:
-    needs: [meta, build-macos-amd64, release-github]
-    if: always() && needs.build-macos-amd64.result == 'success' && needs.release-github.result == 'success'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download Intel artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: timelog-darwin-amd64
-          path: dist
-
-      - name: Compute checksum
-        working-directory: dist
-        run: sha256sum TimeLog-darwin-amd64.zip > TimeLog-darwin-amd64.zip.sha256
-
-      - name: Append Intel asset to nightly release
-        if: github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: nightly
-          fail_on_unmatched_files: false
-          files: |
-            dist/TimeLog-darwin-amd64.zip
-            dist/TimeLog-darwin-amd64.zip.sha256
-
-      - name: Append Intel asset to tagged release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          fail_on_unmatched_files: false
-          files: |
-            dist/TimeLog-darwin-amd64.zip
-            dist/TimeLog-darwin-amd64.zip.sha256
