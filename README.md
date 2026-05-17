@@ -2,7 +2,6 @@
 
 [![Build & Release (Windows)](https://github.com/eerodriguezIndra/TimeLog/actions/workflows/release.yml/badge.svg)](https://github.com/eerodriguezIndra/TimeLog/actions/workflows/release.yml)
 [![Release](https://img.shields.io/github/v/release/eerodriguezIndra/TimeLog?include_prereleases&label=nightly)](https://github.com/eerodriguezIndra/TimeLog/releases/tag/nightly)
-[![ghcr.io](https://img.shields.io/badge/ghcr.io-eerodriguezindra%2Ftimelog-blue?logo=docker)](https://github.com/eerodriguezIndra/TimeLog/pkgs/container/timelog)
 [![Go](https://img.shields.io/badge/Go-1.22-00ADD8?logo=go)](https://go.dev/)
 
 Aplicación de escritorio multiplataforma para **registro horario por interrupción**: cada cierto tiempo (configurable) aparece un panel preguntando *¿qué estás haciendo, para qué cliente y de qué tipo?*, y guarda la respuesta en un CSV.
@@ -39,13 +38,6 @@ Descarga el `.exe` desde la última build automática:
 > **[Descargar TimeLog-windows-amd64.exe](https://github.com/eerodriguezIndra/TimeLog/releases/download/nightly/TimeLog-windows-amd64.exe)**
 
 Ejecuta el `.exe` directamente — no necesita instalación. La primera vez abrirá la ventana de configuración para que escojas el intervalo, dónde guardar el CSV y si quieres que arranque al iniciar sesión.
-
-Alternativa con ORAS (artefacto OCI desde el GitHub Container Registry):
-
-```bash
-oras pull ghcr.io/eerodriguezindra/timelog:latest
-./TimeLog-windows-amd64.exe
-```
 
 ### macOS
 
@@ -170,18 +162,9 @@ TimeLog/
 Cada `git push` a `main` dispara [`release.yml`](.github/workflows/release.yml), que en un runner `windows-latest`:
 
 1. Compila el `.exe` con `fyne package` (icono embebido, subsistema GUI, sin consola).
-2. Lo publica como **pre-release rolling** `nightly` en GitHub Releases.
-3. Lo sube a **`ghcr.io/eerodriguezindra/timelog`** como OCI artifact con [ORAS](https://oras.land/), media type `application/vnd.microsoft.portable-executable`, con tags `latest`, `sha-<7chars>` y `v0.0.<run>-<sha>`.
+2. Lo publica como **pre-release rolling** `nightly` en GitHub Releases, junto con su `.sha256`.
 
 Si haces `git tag v1.2.3 && git push --tags`, en lugar de actualizar `nightly` crea una release etiquetada `TimeLog v1.2.3` con notas autogeneradas.
-
-### Descargar desde ghcr.io
-
-```bash
-oras pull ghcr.io/eerodriguezindra/timelog:latest
-# por SHA específico
-oras pull ghcr.io/eerodriguezindra/timelog:sha-f817bcf
-```
 
 ---
 
