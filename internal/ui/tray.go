@@ -13,8 +13,10 @@ func SetupTray(app fyne.App, onPrompt, onSettings, onQuit func()) bool {
 		return false
 	}
 
+	addItem := fyne.NewMenuItem("+ Nueva tarea", onPrompt)
+	addItem.Icon = IconResource()
 	menu := fyne.NewMenu("TimeLog",
-		fyne.NewMenuItem("Registrar ahora", onPrompt),
+		addItem,
 		fyne.NewMenuItem("Configuración…", onSettings),
 		fyne.NewMenuItemSeparator(),
 		fyne.NewMenuItem("Salir", onQuit),

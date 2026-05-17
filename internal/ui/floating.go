@@ -4,50 +4,57 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
 
-// FloatingWidget crea la ventana pequeña con el icono, que el usuario puede
-// dejar a un lado de la pantalla. La ventana NO tiene botón de cierre real:
-// al intentar cerrarse, simplemente se oculta y queda accesible desde el tray.
-//
-// Notas multiplataforma: el comportamiento "siempre encima" depende del
-// gestor de ventanas. En macOS y la mayoría de WMs Linux el tamaño compacto
-// y la ausencia de decoración la mantiene como overlay liviano; en Windows
-// la ventana respeta el orden Z estándar. El tray es la fuente principal de
-// presencia persistente.
-func FloatingWidget(app fyne.App, onClick, onSettings, onQuit func()) fyne.Window {
+// FloatingWidget crea la mini-ventana siempre visible con el botón principal
+// "+ Nueva tarea" — el usuario puede registrar una entrada en cualquier
+// momento sin esperar al recordatorio periódico. La X del SO solo oculta;
+// la app sigue viva en el system tray.
+func FloatingWidget(app fyne.App, onPrompt, onSettings, onHide func()) fyne.Window {
 	w := app.NewWindow("TimeLog")
 	w.SetIcon(IconResource())
-	w.SetPadded(false)
 
-	icon := canvas.NewImageFromResource(IconResource())
-	icon.FillMode = canvas.ImageFillContain
-	icon.SetMinSize(fyne.NewSize(64, 64))
+	// Marca de la app: ícono + nombre
+	logo := canvas.NewImageFromResource(IconResource())
+	logo.FillMode = canvas.ImageFillContain
+	logo.SetMinSize(fyne.NewSize(32, 32))
 
-	iconBtn := widget.NewButton("", onClick)
-	iconBtn.SetIcon(IconResource())
-	iconBtn.Importance = widget.LowImportance
+	brand := canvas.NewText("TimeLog", themeForeground())
+	brand.TextStyle = fyne.TextStyle{Bold: true}
+	brand.TextSize = 14
 
-	settingsBtn := widget.NewButton("⚙", onSettings)
+	header := container.NewHBox(logo, brand)
+
+	// Acción principal — registrar una tarea ahora, a voluntad
+	addBtn := widget.NewButtonWithIcon("Nueva tarea", theme.ContentAddIcon(), onPrompt)
+	addBtn.Importance = widget.HighImportance
+
+	// Acciones secundarias en una fila compacta
+	settingsBtn := widget.NewButtonWithIcon("", theme.SettingsIcon(), onSettings)
 	settingsBtn.Importance = widget.LowImportance
 
-	quitBtn := widget.NewButton("✕", onQuit)
-	quitBtn.Importance = widget.LowImportance
+	hideBtn := widget.NewButtonWithIcon("", theme.WindowMinimizeIcon(), onHide)
+	hideBtn.Importance = widget.LowImportance
 
-	row := container.NewHBox(iconBtn, settingsBtn, quitBtn)
-	w.SetContent(container.NewPadded(row))
+	actions := container.NewBorder(nil, nil, nil, container.NewHBox(settingsBtn, hideBtn))
 
-	const widW, widH = 180, 80
+	content := container.NewPadded(container.NewVBox(
+		header,
+		addBtn,
+		actions,
+	))
+	w.SetContent(content)
+
+	const widW, widH = 220, 150
 	w.Resize(fyne.NewSize(widW, widH))
 	w.CenterOnScreen()
 
-	// El "botón de cierre" del SO solo oculta la ventana — la app sigue viva en el tray.
+	// La X del SO solo oculta — para salir realmente usar el tray.
 	w.SetCloseIntercept(func() { w.Hide() })
 
-	// En Windows fijamos always-on-top vía user32.SetWindowPos(HWND_TOPMOST)
-	// y movemos la ventana a la esquina superior derecha.
-	// En otras plataformas es no-op (ver *_other.go).
+	// En Windows: HWND_TOPMOST + anclar en esquina superior derecha.
 	enableAlwaysOnTop(w)
 	placeTopRight(w, widW, widH)
 
